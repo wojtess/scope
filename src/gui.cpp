@@ -1,9 +1,11 @@
 #include "gui.h"
+#include "implot.h"
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include <memory>
 #include <cmath>
+#include <cstdlib>
 
 gui::window::window() {
     innerState.running = true;
@@ -36,6 +38,7 @@ int gui::window::begin(int width, int height, std::string name, int fps) {
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
+    ImPlot::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
@@ -71,17 +74,50 @@ void gui::window::render() {
 
     //RENDERING IMGUI
 
-    ImGui::Begin("name");
-        ImGui::Text("");
-        auto values = innerState.supply.getValues();
-        float* plotingValues = new float[values.size()];
-        int i = 0;
-        for(auto &value:values) {
-            plotingValues[i] = value.value;
-            i++; 
+    ImGui::ShowDemoWindow();
+
+    ImGui::Begin("settings");
+        int buffer_size = innerState.supply.buf.getSize();
+        ImGui::DragInt("buffer", &buffer_size, 5.0f, 10, 10000);
+        innerState.supply.buf.setSize(buffer_size);
+        
+        const char* current_item = innerState.supply.port.c_str();
+        if(ImGui::BeginCombo("port", current_item)) {
+            auto ports = innerState.supply.ports;
+            for (int i = 0; i < ports.size(); i++) {
+                auto port = ports[i];
+                bool is_selected = (innerState.supply.port.compare(port) == 0);
+                const char* c_str_port = port.c_str();
+                if(ImGui::Selectable(c_str_port, is_selected)) {
+                    innerState.supply.port = port;
+                }
+                if(is_selected) {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            
+            ImGui::EndCombo();
         }
-        ImGui::PlotLines("", plotingValues, values.size(), 0, "", innerState.supply.getMinValue(), innerState.supply.getMaxValue(), ImVec2(0,80));
-        delete plotingValues;
+        innerState.supply.port = std::string(current_item);
+    ImGui::End();
+
+    ImGui::Begin("plot");
+        auto values = innerState.supply.getValues();
+        float* xValues = new float[values.size()];
+        float* yValues = new float[values.size()];
+        for (int i = 0; i < values.size(); i++) {
+            auto value = values[i];
+            xValues[i] = value.value;
+            yValues[i] = value.timestamp;
+        }
+        if(ImPlot::BeginPlot("plot", ImVec2(-1,-1))) {
+            ImPlot::SetupAxes(NULL, NULL);
+            ImPlot::SetupAxisLimits(ImAxis_X1, yValues[0], yValues[0] + values.size(), ImGuiCond_Always);
+            ImPlot::PlotLine("", yValues, xValues, values.size());
+            ImPlot::EndPlot();
+        }
+        delete xValues;
+        delete yValues;
     ImGui::End();
 
     //END RENDERING IMGUI
@@ -103,9 +139,12 @@ void gui::window::cleanUp() {
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
+    ImPlot::DestroyContext();
 
     glfwDestroyWindow(this->innerState.window);
     glfwTerminate();
+
+    exit(0);
 }
 
 std::thread gui::window::startThread() {

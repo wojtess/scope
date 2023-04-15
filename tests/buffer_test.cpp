@@ -26,7 +26,7 @@ int main() {
     buf.push(102);
     {
         auto data = buf.getVector();
-        int expected[] = {9,10,11,12,13,14,15,16,0,0,101,102};
+        int expected[] = {9,10,11,12,13,14,15,16,16,16,101,102};
         for (int i = 0; i < data.size(); i++) {
             if(expected[i] != data[i]) {
                 return 1;

@@ -1,6 +1,7 @@
 #pragma once
 #include "buffer.h"
 #include <vector>
+#include <string>
 
 namespace supply {
 
@@ -12,10 +13,14 @@ namespace supply {
 
     class data {
         private:
+            
+        public:
+            std::vector<std::string> ports;
+            std::string port;
             Buffer<entry> buf;
             int max_value;
             int min_value;
-        public:
+            
             data();
             data(int size);
             void setSize(int size);

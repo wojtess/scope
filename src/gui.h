@@ -24,6 +24,7 @@ namespace gui {
     {
     private:
 
+
         gui::state innerState = { 0 };
         gui::state prevInnerState = { 0 };
 

@@ -1,19 +1,16 @@
 #include "dataSupply.h"
+#include <string>
 
 supply::data::data(int size): buf(size) {
 
 }
 
 supply::data::data(): buf(0) {
-    buf.setSize(100);
-    for(int i = 0;i < 100; i++) {
-        buf.push(supply::entry {
-            1,
-            i * 10.0f
-        });
-    }
+    buf.setSize(500);
     max_value = 100 * 10;
     min_value = 0;
+    ports.push_back("value01");
+    ports.push_back("value02");
 }
 
 void supply::data::setSize(int size) {

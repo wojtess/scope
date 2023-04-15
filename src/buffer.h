@@ -5,8 +5,7 @@
 #include <cstdio>
 
 template <class T>
-class Buffer
-{
+class Buffer {
 private:
     T* array;
     int size;
@@ -40,6 +39,9 @@ public:
         return out;
     }
     void setSize(int newSize) {
+        if(newSize == size) {
+            return;
+        }
         if(newSize < 0) {
             //wtf, dude use normal numbers not negative shit. "please give me -4 apples" what that even mean?
             return;
@@ -61,11 +63,19 @@ public:
         } else {
             //grow
             memcpy(array, sorted_array, size * sizeof(T));
+            //set last value to all new empty entries
+            //example: [1,2,3] --setSize(5)--> [1,2,3,3,3]
+            for(int i = size; i < newSize; i++) {
+                array[i] = array[size - 1];
+            }
         }
 
         free(sorted_array);
 
         head_index = 0;
         size = newSize;
+    }
+    int getSize() {
+        return size;
     }
 };
