@@ -1,30 +1,43 @@
-#ifndef GUI_H
-#define GUI_H
-
+// #ifndef GUI_H
+// #define GUI_H
+#pragma once
 #include <GL/glew.h>
 #include <string>
 #include <thread>
 #include <GL/gl.h>
 #include <GLFW/glfw3.h>
 #include <atomic>
-#include "shader.h"
+#include <vector>
+#include <mutex>
+#include "dataSupply.h"
 
-class gui
-{
-private:
-    std::atomic_bool _running = { true };
-    std::atomic<GLFWwindow*> _window;
-    std::atomic_int _fps;
-    Shader _glShader;
+namespace gui {
 
-    GLuint VBO;
+    struct state {
+        bool running = { true };
+        GLFWwindow* window;
+        int fps;
+        supply::data supply;
+    };
 
-    void render();
-    void cleanUp();
-public:
-    gui(/* args */);
-    ~gui();
-    int begin(int width, int height, std::string name, int fps);
-    std::thread startThread();
-};
-#endif
+    class window
+    {
+    private:
+
+        gui::state innerState = { 0 };
+        gui::state prevInnerState = { 0 };
+
+        void render();
+        void cleanUp();
+    public:
+        std::mutex stateMutex;
+        gui::state state;
+
+        window(/* args */);
+        ~window();
+        int begin(int width, int height, std::string name, int fps);
+        std::thread startThread();
+    };
+}
+
+// #endif

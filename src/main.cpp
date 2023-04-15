@@ -17,7 +17,6 @@ static void glfw_error_callback(int error, const char* description)
     fprintf(stderr, "GLFW Error %d: %s\n", error, description);
 }
 
-// Main code
 int main(int, char**)
 {
 
@@ -26,24 +25,11 @@ int main(int, char**)
         return 1;
 
 
-    
-    
-    
-
-    gui gui0;
-    gui0.begin(1280, 720, "scope", 165);
-    auto thread = gui0.startThread();
+    gui::window window;
+    window.begin(1280, 720, "scope", 165);
+    auto thread = window.startThread();
 
     while(true) {}
 
     return 0;
 }
-
-// #include <iostream>
-// #include <GL/glew.h>
-// #include <GLFW/glfw3.h>
-
-// int main()
-// {
-//     return 0;
-// }

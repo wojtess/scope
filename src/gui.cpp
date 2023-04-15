@@ -2,48 +2,30 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
-#include <stdio.h>
-#include <GL/glew.h>
-#define GL_SILENCE_DEPRECATION
-#include <GLFW/glfw3.h> // Will drag system OpenGL headers
 #include <memory>
+#include <cmath>
 
-const std::string vertexShaderSource = "#version 330 core\n"
-    "layout (location = 0) in vec3 aPos;\n"
-    "void main()\n"
-    "{\n"
-    "   gl_Position = vec4(aPos, 1.0);\n"
-    "}";
-
-const std::string fragmentShaderSource = "#version 330 core\n"
-    "out vec4 FragColor;\n"
-    "uniform vec4 ourColor;\n"
-    "void main()\n"
-    "{\n"
-    "   FragColor = ourColor;\n"
-    "}\n";
-
-gui::gui() {
-    
+gui::window::window() {
+    innerState.running = true;
 }
 
-gui::~gui() {
-    this->_running = false;
+gui::window::~window() {
+    this->innerState.running = false;
 }
 
-int gui::begin(int width, int height, std::string name, int fps) {
+int gui::window::begin(int width, int height, std::string name, int fps) {
     // GL 3.0 + GLSL 130
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
     // Create window with graphics context
-    this->_window = glfwCreateWindow(width, height, name.c_str(), NULL, NULL);
-    if (this->_window == NULL)
+    this->innerState.window = glfwCreateWindow(width, height, name.c_str(), NULL, NULL);
+    if (this->innerState.window == NULL)
         return 1;
-    glfwMaximizeWindow(_window);
+    glfwMaximizeWindow(this->innerState.window);
     
-    glfwMakeContextCurrent(_window);
+    glfwMakeContextCurrent(this->innerState.window);
 
     int glewStatus = glewInit();
     if ( glewStatus != GLEW_OK ) {
@@ -63,41 +45,18 @@ int gui::begin(int width, int height, std::string name, int fps) {
     } else {
         glfwSwapInterval(0); // Disable vsync
     }
-    this->_fps = fps;
+    this->innerState.fps = fps;
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
-    // ImGui::StyleColorsLight();
-
-    // Setup Platform/Renderer backends
-    ImGui_ImplGlfw_InitForOpenGL(this->_window, true);
-    ImGui_ImplOpenGL3_Init("#version 130");
-
-    this->_glShader.begin(vertexShaderSource, fragmentShaderSource);
-
-    // glGenBuffers(1, &this->VBO);
-    // glBindBuffer(GL_ARRAY_BUFFER, this->VBO);
-
-    unsigned int VAO;
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
-    glBindVertexArray(VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-
-    // You can unbind the VAO afterwards so other VAO calls won't accidentally modify this VAO, but this rarely happens. Modifying other
-    // VAOs requires a call to glBindVertexArray anyways so we generally don't unbind VAOs (nor VBOs) when it's not directly necessary.
-    // glBindVertexArray(0);
-
-
-    // bind the VAO (it was already bound, but just to demonstrate): seeing as we only have a single VAO we can 
-    // just bind it beforehand before rendering the respective triangle; this is another approach.
-    glBindVertexArray(VAO);
-
+    ImGui_ImplOpenGL3_Init();
+    ImGui_ImplGlfw_InitForOpenGL(this->innerState.window, true);
     return 0;
 }
 
-void gui::render() {
+float t = 0.0f;
+
+void gui::window::render() {
     // Poll and handle events (inputs, window resize, etc.)
     // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
     // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application, or clear/overwrite your copy of the mouse data.
@@ -114,6 +73,15 @@ void gui::render() {
 
     ImGui::Begin("name");
         ImGui::Text("");
+        auto values = innerState.supply.getValues();
+        float* plotingValues = new float[values.size()];
+        int i = 0;
+        for(auto &value:values) {
+            plotingValues[i] = value.value;
+            i++; 
+        }
+        ImGui::PlotLines("", plotingValues, values.size(), 0, "", innerState.supply.getMinValue(), innerState.supply.getMaxValue(), ImVec2(0,80));
+        delete plotingValues;
     ImGui::End();
 
     //END RENDERING IMGUI
@@ -121,74 +89,67 @@ void gui::render() {
     // Rendering
     ImGui::Render();
     int display_w, display_h;
-    glfwGetFramebufferSize(_window, &display_w, &display_h);
+    glfwGetFramebufferSize(this->innerState.window, &display_w, &display_h);
     glViewport(0, 0, display_w, display_h);
     glClearColor(0.45f, 0.55f, 0.60f, 1.00f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-
-    this->_glShader.use();
-
-    int vertexColorLocation = glGetUniformLocation(this->_glShader.getProgramID(), "ourColor");
-    glUniform4f(vertexColorLocation, 0.0f, 1.0f, 0.0f, 1.0f);
-
-    float vertices[] = {
-         0.5f, -0.5f, 0.0f,  // bottom right
-        -0.5f, -0.5f, 0.0f,  // bottom left
-         0.0f,  0.5f, 0.0f   // top 
-    };
-
-    
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
-
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    // render the triangle
-    glDrawArrays(GL_TRIANGLES, 0, 3);
-
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
-    glfwSwapBuffers(_window);
+    glfwSwapBuffers(this->innerState.window);
 }
 
-void gui::cleanUp() {
+void gui::window::cleanUp() {
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
-    glfwDestroyWindow(this->_window);
+    glfwDestroyWindow(this->innerState.window);
     glfwTerminate();
 }
 
-std::thread gui::startThread() {
-    printf("STARTING THREAD\n");
+std::thread gui::window::startThread() {
     auto thread = std::thread([this]() {
 
         double lastFrameTime = 0;   // number of seconds since the last frame
 
-        while(this->_running) {
+        while(this->innerState.running) {
+            //check for state mutex and change data
+            if(memcmp(&this->innerState, &this->prevInnerState, sizeof(this->innerState)) != 0) {
+                //change in innerState
+                if(this->stateMutex.try_lock()) {
+                    //lock succesful
+                    //cahnge public state
+                    this->state = this->innerState;
+                    this->stateMutex.unlock();
+                    this->prevInnerState = this->innerState;
+                } else {
+                    //lock unsuccesful
+                    //dont change anythink, maybe next time mutex can be locked, then save state
+                }
+            }
             
-            if(glfwWindowShouldClose(this->_window)) {
-                    this->_running = false;
+
+            //rendering stuff
+            if(glfwWindowShouldClose(this->innerState.window)) {
+                    this->innerState.running = false;
             }
 
-            if(this->_fps <= 0) {
-                glfwMakeContextCurrent(this->_window);
+            if(this->innerState.fps <= 0) {
+                glfwMakeContextCurrent(this->innerState.window);
                 this->render();
             } else {
                 double now = glfwGetTime();
 
-                if ((now - lastFrameTime) >= 1.0 / this->_fps) {
+                if ((now - lastFrameTime) >= 1.0 / this->innerState.fps) {
                     lastFrameTime = now;
 
-                    glfwMakeContextCurrent(this->_window);
+                    glfwMakeContextCurrent(this->innerState.window);
                     this->render();
                 }
             }
             
         }
-        printf("CLEAN UP\n");
         this->cleanUp();
     });
     thread.detach();
