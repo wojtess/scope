@@ -19,7 +19,8 @@ public:
         free(this->array);
     }
     void push(T data) {
-        array[head_index] = data;
+        memcpy(&array[head_index], &data, sizeof(data));
+        // array[head_index] = data;
         head_index++;
         if(head_index >= size) {
             head_index = 0;

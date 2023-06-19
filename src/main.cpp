@@ -19,7 +19,6 @@ static void glfw_error_callback(int error, const char* description)
 
 int main(int, char**)
 {
-
     glfwSetErrorCallback(glfw_error_callback);
     if (!glfwInit())
         return 1;
@@ -28,8 +27,10 @@ int main(int, char**)
     gui::window window;
     window.begin(1280, 720, "scope", 165);
     auto thread = window.startThread();
-
-    while(true) {}
+    
+    while(true) {
+        window.state.supply.readData();
+    }
 
     return 0;
 }

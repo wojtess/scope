@@ -8,11 +8,11 @@
 #include <cstdlib>
 
 gui::window::window() {
-    innerState.running = true;
+    state.running = true;
 }
 
 gui::window::~window() {
-    this->innerState.running = false;
+    this->state.running = false;
 }
 
 int gui::window::begin(int width, int height, std::string name, int fps) {
@@ -22,12 +22,12 @@ int gui::window::begin(int width, int height, std::string name, int fps) {
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
     // Create window with graphics context
-    this->innerState.window = glfwCreateWindow(width, height, name.c_str(), NULL, NULL);
-    if (this->innerState.window == NULL)
+    this->state.window = glfwCreateWindow(width, height, name.c_str(), NULL, NULL);
+    if (this->state.window == NULL)
         return 1;
-    glfwMaximizeWindow(this->innerState.window);
+    glfwMaximizeWindow(this->state.window);
     
-    glfwMakeContextCurrent(this->innerState.window);
+    glfwMakeContextCurrent(this->state.window);
 
     int glewStatus = glewInit();
     if ( glewStatus != GLEW_OK ) {
@@ -48,12 +48,12 @@ int gui::window::begin(int width, int height, std::string name, int fps) {
     } else {
         glfwSwapInterval(0); // Disable vsync
     }
-    this->innerState.fps = fps;
+    this->state.fps = fps;
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
     ImGui_ImplOpenGL3_Init();
-    ImGui_ImplGlfw_InitForOpenGL(this->innerState.window, true);
+    ImGui_ImplGlfw_InitForOpenGL(this->state.window, true);
     return 0;
 }
 
@@ -77,19 +77,23 @@ void gui::window::render() {
     ImGui::ShowDemoWindow();
 
     ImGui::Begin("settings");
-        int buffer_size = innerState.supply.buf.getSize();
-        ImGui::DragInt("buffer", &buffer_size, 5.0f, 10, 10000);
-        innerState.supply.buf.setSize(buffer_size);
+        int buffer_size = state.supply.buf.getSize();
+        ImGui::DragInt("buffer", &buffer_size, 5.0f, 10, 1000000);
+        state.supply.buf.setSize(buffer_size);
         
-        const char* current_item = innerState.supply.port.c_str();
+        if(ImGui::Button("refresh ports")) {
+            state.supply.refresh();
+        }
+
+        const char* current_item = state.supply.serial.getPort().c_str();
         if(ImGui::BeginCombo("port", current_item)) {
-            auto ports = innerState.supply.ports;
+            auto ports = state.supply.ports;
             for (int i = 0; i < ports.size(); i++) {
                 auto port = ports[i];
-                bool is_selected = (innerState.supply.port.compare(port) == 0);
-                const char* c_str_port = port.c_str();
+                bool is_selected = (state.supply.serial.getPort().compare(port.port) == 0);
+                const char* c_str_port = port.port.c_str();
                 if(ImGui::Selectable(c_str_port, is_selected)) {
-                    innerState.supply.port = port;
+                    state.supply.serial.setPort(std::string(current_item));
                 }
                 if(is_selected) {
                     ImGui::SetItemDefaultFocus();
@@ -98,22 +102,23 @@ void gui::window::render() {
             
             ImGui::EndCombo();
         }
-        innerState.supply.port = std::string(current_item);
+        
     ImGui::End();
 
     ImGui::Begin("plot");
-        auto values = innerState.supply.getValues();
+        auto values = state.supply.getValues();
+        auto baseTimestamp = values[values.size() - 1].timestamp;
         float* xValues = new float[values.size()];
         float* yValues = new float[values.size()];
         for (int i = 0; i < values.size(); i++) {
             auto value = values[i];
             xValues[i] = value.value;
-            yValues[i] = value.timestamp;
+            yValues[i] = (float) (baseTimestamp - value.timestamp);
         }
         if(ImPlot::BeginPlot("plot", ImVec2(-1,-1))) {
             ImPlot::SetupAxes(NULL, NULL);
-            ImPlot::SetupAxisLimits(ImAxis_X1, yValues[0], yValues[0] + values.size(), ImGuiCond_Always);
-            ImPlot::PlotLine("", yValues, xValues, values.size());
+            // ImPlot::SetupAxisLimits(ImAxis_X1, yValues[0], yValues[0] + values.size(), ImGuiCond_Always);
+            ImPlot::PlotLine("test", yValues, xValues, values.size());
             ImPlot::EndPlot();
         }
         delete xValues;
@@ -125,14 +130,14 @@ void gui::window::render() {
     // Rendering
     ImGui::Render();
     int display_w, display_h;
-    glfwGetFramebufferSize(this->innerState.window, &display_w, &display_h);
+    glfwGetFramebufferSize(this->state.window, &display_w, &display_h);
     glViewport(0, 0, display_w, display_h);
     glClearColor(0.45f, 0.55f, 0.60f, 1.00f);
     glClear(GL_COLOR_BUFFER_BIT);
 
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
-    glfwSwapBuffers(this->innerState.window);
+    glfwSwapBuffers(this->state.window);
 }
 
 void gui::window::cleanUp() {
@@ -141,7 +146,7 @@ void gui::window::cleanUp() {
     ImGui::DestroyContext();
     ImPlot::DestroyContext();
 
-    glfwDestroyWindow(this->innerState.window);
+    glfwDestroyWindow(this->state.window);
     glfwTerminate();
 
     exit(0);
@@ -152,38 +157,39 @@ std::thread gui::window::startThread() {
 
         double lastFrameTime = 0;   // number of seconds since the last frame
 
-        while(this->innerState.running) {
-            //check for state mutex and change data
-            if(memcmp(&this->innerState, &this->prevInnerState, sizeof(this->innerState)) != 0) {
-                //change in innerState
-                if(this->stateMutex.try_lock()) {
-                    //lock succesful
-                    //cahnge public state
-                    this->state = this->innerState;
-                    this->stateMutex.unlock();
-                    this->prevInnerState = this->innerState;
-                } else {
-                    //lock unsuccesful
-                    //dont change anythink, maybe next time mutex can be locked, then save state
-                }
-            }
+        stateMutex.lock();
+        while(this->state.running) {
+            // //check for state mutex and change data
+            // if(memcmp(&this->innerState, &this->prevInnerState, sizeof(this->innerState)) != 0) {
+            //     //change in innerState
+            //     if(this->stateMutex.try_lock()) {
+            //         //lock succesful
+            //         //cahnge public state
+            //         this->state = this->innerState;
+            //         this->stateMutex.unlock();
+            //         this->prevInnerState = this->innerState;
+            //     } else {
+            //         //lock unsuccesful
+            //         //dont change anythink, maybe next time mutex can be locked, then save state
+            //     }
+            // }
             
 
             //rendering stuff
-            if(glfwWindowShouldClose(this->innerState.window)) {
-                    this->innerState.running = false;
+            if(glfwWindowShouldClose(this->state.window)) {
+                    this->state.running = false;
             }
 
-            if(this->innerState.fps <= 0) {
-                glfwMakeContextCurrent(this->innerState.window);
+            if(this->state.fps <= 0) {
+                glfwMakeContextCurrent(this->state.window);
                 this->render();
             } else {
                 double now = glfwGetTime();
 
-                if ((now - lastFrameTime) >= 1.0 / this->innerState.fps) {
+                if ((now - lastFrameTime) >= 1.0 / this->state.fps) {
                     lastFrameTime = now;
 
-                    glfwMakeContextCurrent(this->innerState.window);
+                    glfwMakeContextCurrent(this->state.window);
                     this->render();
                 }
             }

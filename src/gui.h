@@ -23,11 +23,6 @@ namespace gui {
     class window
     {
     private:
-
-
-        gui::state innerState = { 0 };
-        gui::state prevInnerState = { 0 };
-
         void render();
         void cleanUp();
     public:
